@@ -3,7 +3,7 @@ kind: Kustomization
 namespace: marketing
 resources:
 - k8s/marketing.yaml
-- k8s/oauth2-proxy.yaml
+- k8s/edge-sso.yaml
 configMapGenerator:
 - name: marketing-site
   files:
