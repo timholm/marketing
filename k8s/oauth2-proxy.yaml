@@ -1,0 +1,103 @@
+# Holm SSO gate for marketing.holm.team (Authelia at sso.holm.team).
+# The Cloudflare tunnel sends marketing.holm.team to this proxy; it enforces login,
+# then forwards to the marketing site service. Secret `marketing-oauth2`
+# (client-id/client-secret/cookie-secret) is created out-of-band, not in git.
+# Pattern copied from apps/finder/oauth2-proxy.yaml in k8s-config.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oauth2-proxy
+  namespace: marketing
+  labels:
+    app: oauth2-proxy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: oauth2-proxy
+  template:
+    metadata:
+      labels:
+        app: oauth2-proxy
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/hostname
+                operator: NotIn
+                values: ["rpi-1", "rpi-5", "rpi-8", "rpi-9", "cm3588-plus"]
+      containers:
+        - name: oauth2-proxy
+          image: quay.io/oauth2-proxy/oauth2-proxy:v7.7.1
+          args:
+            - --provider=oidc
+            - --oidc-issuer-url=https://sso.holm.team
+            - --skip-oidc-discovery=true
+            - --login-url=https://sso.holm.team/api/oidc/authorization
+            - --redeem-url=https://sso.holm.team/api/oidc/token
+            - --oidc-jwks-url=https://sso.holm.team/jwks.json
+            - --profile-url=https://sso.holm.team/api/oidc/userinfo
+            - --redirect-url=https://marketing.holm.team/oauth2/callback
+            - --upstream=http://marketing.marketing.svc.cluster.local:80
+            - --http-address=0.0.0.0:4180
+            - --email-domain=*
+            - --scope=openid email profile groups
+            - --allowed-group=admins
+            - --cookie-secure=true
+            - --cookie-domain=.holm.team
+            - --whitelist-domain=.holm.team
+            - --reverse-proxy=true
+            - --skip-provider-button=true
+            - --code-challenge-method=S256
+            - --provider-display-name=Holm SSO
+            - --set-xauthrequest=true
+            - --pass-access-token=true
+          env:
+            - name: OAUTH2_PROXY_CLIENT_ID
+              valueFrom:
+                secretKeyRef: { name: marketing-oauth2, key: client-id }
+            - name: OAUTH2_PROXY_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef: { name: marketing-oauth2, key: client-secret }
+            - name: OAUTH2_PROXY_COOKIE_SECRET
+              valueFrom:
+                secretKeyRef: { name: marketing-oauth2, key: cookie-secret }
+          ports:
+            - name: http
+              containerPort: 4180
+          readinessProbe:
+            httpGet: { path: /ping, port: http }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /ping, port: http }
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          resources:
+            requests: { cpu: 20m, memory: 48Mi }
+            limits: { cpu: 250m, memory: 192Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 2000
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: oauth2-proxy
+  namespace: marketing
+  labels:
+    app: oauth2-proxy
+spec:
+  selector:
+    app: oauth2-proxy
+  ports:
+    - name: http
+      port: 4180
+      targetPort: 4180
