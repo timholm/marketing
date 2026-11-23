@@ -1,0 +1,14 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: marketing
+resources:
+- k8s/marketing.yaml
+- k8s/oauth2-proxy.yaml
+configMapGenerator:
+- name: marketing-site
+  files:
+  - index.html
+  - app.js
+  - styles.css
+  options:
+    disableNameSuffixHash: true
