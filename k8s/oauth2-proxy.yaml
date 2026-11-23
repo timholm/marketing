@@ -1,8 +1,10 @@
-# Holm SSO gate for marketing.holm.team (Authelia at sso.holm.team).
-# The Cloudflare tunnel sends marketing.holm.team to this proxy; it enforces login,
-# then forwards to the marketing site service. Secret `marketing-oauth2`
-# (client-id/client-secret/cookie-secret) is created out-of-band, not in git.
-# Pattern copied from apps/finder/oauth2-proxy.yaml in k8s-config.
+# Holm ID gate for marketing.holm.team (Authentik at id.holm.team).
+# The Cloudflare tunnel sends marketing.holm.team to this proxy; it enforces a
+# Holm ID login (holm-admins group), then forwards to the marketing site service.
+# Secret `marketing-oauth2` (client-id/client-secret/cookie-secret) is created
+# out-of-band, not in git; the client_secret is synced from the Authentik
+# provider created by the blueprints in k8s-config apps/authentik.
+# Pattern copied from the live finder oauth2-proxy deployment.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -33,25 +35,25 @@ spec:
           image: quay.io/oauth2-proxy/oauth2-proxy:v7.7.1
           args:
             - --provider=oidc
-            - --oidc-issuer-url=https://sso.holm.team
+            - --oidc-issuer-url=https://id.holm.team/application/o/marketing/
             - --skip-oidc-discovery=true
-            - --login-url=https://sso.holm.team/api/oidc/authorization
-            - --redeem-url=https://sso.holm.team/api/oidc/token
-            - --oidc-jwks-url=https://sso.holm.team/jwks.json
-            - --profile-url=https://sso.holm.team/api/oidc/userinfo
+            - --login-url=https://id.holm.team/application/o/authorize/
+            - --redeem-url=https://id.holm.team/application/o/token/
+            - --oidc-jwks-url=https://id.holm.team/application/o/marketing/jwks/
+            - --profile-url=https://id.holm.team/application/o/userinfo/
             - --redirect-url=https://marketing.holm.team/oauth2/callback
             - --upstream=http://marketing.marketing.svc.cluster.local:80
             - --http-address=0.0.0.0:4180
             - --email-domain=*
             - --scope=openid email profile groups
-            - --allowed-group=admins
+            - --allowed-group=holm-admins
             - --cookie-secure=true
             - --cookie-domain=.holm.team
             - --whitelist-domain=.holm.team
             - --reverse-proxy=true
             - --skip-provider-button=true
             - --code-challenge-method=S256
-            - --provider-display-name=Holm SSO
+            - --provider-display-name=Holm ID
             - --set-xauthrequest=true
             - --pass-access-token=true
           env:
