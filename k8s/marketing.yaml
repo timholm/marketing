@@ -70,24 +70,3 @@ spec:
   - name: http
     port: 80
     targetPort: 8080
----
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: marketing
-  namespace: marketing
-  labels:
-    app: marketing
-spec:
-  ingressClassName: nginx
-  rules:
-  - host: marketing.holm.team
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: marketing
-            port:
-              number: 80
